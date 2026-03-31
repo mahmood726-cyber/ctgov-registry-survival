@@ -1,0 +1,44 @@
+{
+  "km_times": [365, 730, 1095, 1825],
+  "km_surv": [0.935, 0.8353, 0.7806, 0.7418],
+  "km_lower": [0.9198, 0.8123, 0.7545, 0.7134],
+  "km_upper": [0.9504, 0.8591, 0.8075, 0.7714],
+  "km_n_risk": [935, 749, 631, 453],
+  "km_n_event": [65, 95, 48, 27],
+  "km_median": "NA",
+  "cox_coef": {
+    "lead_sponsor_classNIH": 0.0363,
+    "lead_sponsor_classFED": 0.1817,
+    "lead_sponsor_classOTHER_GOV": 0.3917,
+    "lead_sponsor_classNETWORK": 0.2664,
+    "lead_sponsor_classOTHER": 0.0189,
+    "lead_sponsor_classINDIV": 0.374,
+    "lead_sponsor_classUNKNOWN": 0.4974,
+    "phase_labelPhase 1": 0.2031,
+    "phase_labelPhase 1/Phase 2": 0.1237,
+    "phase_labelPhase 2": 0.3644,
+    "phase_labelPhase 2/Phase 3": -0.178,
+    "phase_labelPhase 3": 0.2048,
+    "phase_labelPhase 4": 0.1768
+  },
+  "cox_se": {
+    "lead_sponsor_classNIH": 0.2796,
+    "lead_sponsor_classFED": 0.2781,
+    "lead_sponsor_classOTHER_GOV": 0.2703,
+    "lead_sponsor_classNETWORK": 0.2648,
+    "lead_sponsor_classOTHER": 0.2796,
+    "lead_sponsor_classINDIV": 0.2658,
+    "lead_sponsor_classUNKNOWN": 0.2608,
+    "phase_labelPhase 1": 0.2298,
+    "phase_labelPhase 1/Phase 2": 0.2493,
+    "phase_labelPhase 2": 0.2256,
+    "phase_labelPhase 2/Phase 3": 0.2509,
+    "phase_labelPhase 3": 0.2437,
+    "phase_labelPhase 4": 0.2327
+  },
+  "schoenfeld_p": {
+    "lead_sponsor_class": 0.8378,
+    "phase_label": 0.3223,
+    "GLOBAL": 0.6681
+  }
+}
