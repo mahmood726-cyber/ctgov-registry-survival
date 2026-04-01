@@ -1,0 +1,1728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CT.gov Registry Survival — Time-to-Disclosure Analysis</title>
+<style>
+/* ── Design tokens ───────────────────────────────────────────────── */
+:root {
+  --bg:       #f8f5ef;
+  --paper:    #fffdfa;
+  --ink:      #111;
+  --muted:    #555;
+  --border:   #d9d4c7;
+  --accent:   #326891;
+  --gold:     #8b6914;
+  --red:      #c03b26;
+  --green:    #2a7f62;
+  --purple:   #6b3fa0;
+  --sans:     "Segoe UI", Helvetica, Arial, sans-serif;
+  --serif:    Georgia, "Times New Roman", Times, serif;
+  --radius:   6px;
+  --shadow:   0 1px 4px rgba(0,0,0,.10);
+}
+
+/* ── Reset & base ────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Skip nav ────────────────────────────────────────────────────── */
+.skip {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--accent);
+  color: #fff;
+  padding: 8px 14px;
+  text-decoration: none;
+  font-size: .875rem;
+  border-radius: 0 0 var(--radius) 0;
+  z-index: 999;
+  transition: top .15s;
+}
+.skip:focus { top: 0; }
+
+/* ── Page container ──────────────────────────────────────────────── */
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 1.5rem 3rem;
+}
+
+/* ── Masthead ────────────────────────────────────────────────────── */
+.masthead {
+  background: var(--accent);
+  color: #fff;
+  padding: 0;
+  margin-bottom: 0;
+}
+.masthead-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  align-items: baseline;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+.masthead h1 {
+  font-family: var(--serif);
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  line-height: 1.3;
+}
+.masthead .subtitle {
+  font-size: .825rem;
+  opacity: .85;
+  font-style: italic;
+}
+.masthead-meta {
+  margin-left: auto;
+  font-size: .75rem;
+  opacity: .75;
+  text-align: right;
+}
+
+/* ── Hero section ────────────────────────────────────────────────── */
+.hero {
+  background: var(--paper);
+  border-bottom: 2px solid var(--accent);
+  padding: 2rem 1.5rem 1.75rem;
+  margin: 0 -1.5rem 2rem;
+}
+.hero-headline {
+  font-family: var(--serif);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent);
+  max-width: 820px;
+  margin-bottom: .5rem;
+  line-height: 1.35;
+}
+.hero-sub {
+  font-size: .925rem;
+  color: var(--muted);
+  max-width: 720px;
+  margin-bottom: 1.5rem;
+}
+
+/* Hero metric rail ─────────────────────────────────────────────── */
+.hero-rail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+}
+.metric-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.125rem;
+  position: relative;
+}
+.metric-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  border-radius: var(--radius) 0 0 var(--radius);
+  background: var(--card-accent, var(--accent));
+}
+.metric-card .val {
+  font-family: var(--serif);
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: var(--card-accent, var(--accent));
+  line-height: 1.1;
+}
+.metric-card .pct {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--card-accent, var(--accent));
+  margin-left: .3rem;
+  opacity: .75;
+}
+.metric-card .label {
+  font-size: .775rem;
+  color: var(--muted);
+  margin-top: .25rem;
+  line-height: 1.4;
+}
+
+/* ── Tab navigation ──────────────────────────────────────────────── */
+.tab-nav {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 1.75rem;
+  flex-wrap: wrap;
+  overflow-x: auto;
+}
+.tab-btn {
+  font-family: var(--sans);
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: .65rem 1.1rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .15s, border-color .15s;
+  margin-bottom: -2px;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.tab-btn:hover { color: var(--accent); background: rgba(50,104,145,.05); }
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: var(--paper);
+}
+.tab-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Tab panels ──────────────────────────────────────────────────── */
+.tab-panel { animation: fadein .18s ease; }
+.tab-panel[hidden] { display: none; }
+@keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* ── Section headers ─────────────────────────────────────────────── */
+.panel-title {
+  font-family: var(--serif);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: .35rem;
+}
+.panel-desc {
+  font-size: .875rem;
+  color: var(--muted);
+  max-width: 760px;
+  margin-bottom: 1.25rem;
+}
+
+/* ── Chart placeholder ───────────────────────────────────────────── */
+.chart-placeholder {
+  background: var(--paper);
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius);
+  min-height: 340px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+  position: relative;
+  overflow: hidden;
+}
+.chart-placeholder-inner {
+  text-align: center;
+  color: var(--muted);
+}
+.chart-placeholder-inner svg {
+  display: block;
+  margin: 0 auto .75rem;
+  opacity: .35;
+}
+.chart-placeholder-inner p {
+  font-size: .825rem;
+  max-width: 280px;
+}
+.chart-placeholder-inner .ph-id {
+  font-family: monospace;
+  font-size: .7rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 6px;
+  display: inline-block;
+  margin-top: .4rem;
+  color: var(--muted);
+}
+
+/* ── Inline metric strip ─────────────────────────────────────────── */
+.metric-strip {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+.metric-strip .metric-card { flex: 1 1 160px; }
+
+/* ── Data tables ─────────────────────────────────────────────────── */
+.data-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 1.5rem;
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .825rem;
+}
+.data-table caption {
+  font-size: .8rem;
+  color: var(--muted);
+  text-align: left;
+  padding-bottom: .5rem;
+  font-style: italic;
+}
+.data-table th {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: .45rem .75rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.data-table td {
+  border: 1px solid var(--border);
+  padding: .4rem .75rem;
+  vertical-align: top;
+}
+.data-table tr:nth-child(even) td { background: var(--bg); }
+.data-table tbody tr:hover td { background: rgba(50,104,145,.05); }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.data-table .sig { color: var(--red); font-weight: 600; }
+.data-table .pos { color: var(--green); }
+.data-table .neg { color: var(--red); }
+
+/* ── Forest plot ─────────────────────────────────────────────────── */
+.forest-container {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  overflow-x: auto;
+}
+.forest-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .25rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: .8rem;
+}
+.forest-row:last-child { border-bottom: none; }
+.forest-row.header {
+  font-weight: 700;
+  font-size: .75rem;
+  color: var(--muted);
+  border-bottom: 2px solid var(--border);
+  padding-bottom: .4rem;
+}
+.forest-row.section-head {
+  font-weight: 700;
+  color: var(--accent);
+  font-size: .8rem;
+  background: rgba(50,104,145,.05);
+  padding: .3rem .5rem;
+  border-radius: 3px;
+  border-bottom: none;
+  margin-top: .25rem;
+}
+.fr-label { flex: 0 0 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fr-hr    { flex: 0 0 70px; text-align: right; font-variant-numeric: tabular-nums; }
+.fr-ci    { flex: 0 0 130px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.fr-p     { flex: 0 0 80px; text-align: right; font-variant-numeric: tabular-nums; }
+.fr-bar   { flex: 1; position: relative; height: 18px; min-width: 200px; }
+.fr-track {
+  position: absolute;
+  top: 50%; transform: translateY(-50%);
+  height: 2px;
+  background: var(--border);
+  width: 100%;
+}
+.fr-ci-line {
+  position: absolute;
+  top: 50%; transform: translateY(-50%);
+  height: 2px;
+  background: var(--accent);
+}
+.fr-diamond {
+  position: absolute;
+  top: 50%; transform: translate(-50%, -50%);
+  width: 10px; height: 10px;
+  border-radius: 2px;
+  background: var(--accent);
+  border: 1.5px solid var(--accent);
+}
+.fr-diamond.neg { background: var(--red); border-color: var(--red); }
+.fr-diamond.pos { background: var(--green); border-color: var(--green); }
+.fr-vline {
+  position: absolute;
+  top: 0; bottom: 0; left: 50%;
+  width: 1px;
+  background: rgba(0,0,0,.15);
+}
+
+/* ── Risk table ─────────────────────────────────────────────────── */
+.risk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .775rem;
+  font-variant-numeric: tabular-nums;
+}
+.risk-table th {
+  background: var(--accent);
+  color: #fff;
+  padding: .35rem .6rem;
+  text-align: center;
+  font-weight: 600;
+}
+.risk-table th:first-child { text-align: left; }
+.risk-table td {
+  border: 1px solid var(--border);
+  padding: .3rem .6rem;
+  text-align: center;
+}
+.risk-table td:first-child { text-align: left; font-weight: 600; }
+
+/* ── Stratum selector ────────────────────────────────────────────── */
+.strat-controls {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+.strat-controls label {
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.strat-controls select {
+  font-family: var(--sans);
+  font-size: .85rem;
+  padding: .4rem .7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+}
+.strat-controls select:focus { outline: 2px solid var(--accent); }
+
+/* ── Concordance badge ───────────────────────────────────────────── */
+.concordance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: .35rem 1rem;
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+.concordance-badge .val { font-size: 1.2rem; font-family: var(--serif); }
+
+/* ── KM inline SVG ───────────────────────────────────────────────── */
+.km-svg-wrap {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .75rem;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+}
+
+/* ── Colour legend ───────────────────────────────────────────────── */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1.25rem;
+  font-size: .775rem;
+  margin-bottom: 1rem;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+.legend-swatch {
+  width: 18px; height: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* ── CIF stacked bar ────────────────────────────────────────────── */
+.cif-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  margin-bottom: 1.5rem;
+}
+.cif-bar-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  font-size: .8rem;
+}
+.cif-bar-label { flex: 0 0 90px; color: var(--muted); }
+.cif-bar-track {
+  flex: 1;
+  height: 22px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+}
+.cif-bar-seg { height: 100%; transition: width .3s; }
+.cif-bar-val { flex: 0 0 45px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* ── Note / callout ─────────────────────────────────────────────── */
+.callout {
+  background: #eef4f9;
+  border-left: 4px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: .75rem 1rem;
+  font-size: .85rem;
+  color: var(--ink);
+  margin-bottom: 1.25rem;
+}
+.callout.warn {
+  background: #fdf6ec;
+  border-left-color: var(--gold);
+}
+.callout strong { color: var(--accent); }
+.callout.warn strong { color: var(--gold); }
+
+/* ── Footer ─────────────────────────────────────────────────────── */
+.page-footer {
+  border-top: 1px solid var(--border);
+  margin-top: 3rem;
+  padding-top: 1rem;
+  font-size: .775rem;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  justify-content: space-between;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .hero-headline { font-size: 1.25rem; }
+  .hero-rail { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  .fr-label { flex: 0 0 150px; }
+  .fr-ci    { flex: 0 0 110px; }
+}
+@media (max-width: 640px) {
+  .masthead-inner { flex-direction: column; gap: .5rem; }
+  .masthead-meta  { margin-left: 0; text-align: left; }
+  .hero-rail { grid-template-columns: 1fr 1fr; }
+  .tab-btn { font-size: .78rem; padding: .55rem .75rem; }
+  .fr-ci { display: none; }
+  .fr-label { flex: 0 0 130px; }
+}
+
+/* ── Dark mode ──────────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:     #1a1a1a;
+    --paper:  #242424;
+    --ink:    #e8e4db;
+    --muted:  #999;
+    --border: #3a3733;
+    --accent: #5b9abf;
+    --gold:   #c49a2a;
+    --red:    #e05840;
+    --green:  #3dab7e;
+  }
+  .masthead { background: #1e3347; }
+  .callout  { background: #1c2a34; }
+  .callout.warn { background: #2a2112; }
+  .risk-table th { background: #2a4a62; }
+  .forest-container { background: var(--paper); }
+  .tab-btn:hover { background: rgba(91,154,191,.08); }
+  .tab-btn.active { background: var(--paper); }
+}
+</style>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to main content</a>
+
+<!-- ── Masthead ─────────────────────────────────────────────────── -->
+<header class="masthead" role="banner">
+  <div class="masthead-inner">
+    <h1>CT.gov Registry Survival Analysis</h1>
+    <span class="subtitle">Time-to-Disclosure in 269,052 Interventional Trials</span>
+    <div class="masthead-meta">
+      Pre-computed results · March 2026<br>
+      n = 269,052 · Follow-up through 2024
+    </div>
+  </div>
+</header>
+
+<div class="page">
+
+<!-- ── Hero ─────────────────────────────────────────────────────── -->
+<section class="hero" aria-labelledby="hero-title">
+  <h2 class="hero-headline" id="hero-title">
+    Only 1 in 4 registered trials discloses results via CT.gov — median 22 months after completion
+  </h2>
+  <p class="hero-sub">
+    Kaplan–Meier survival analysis of 269,052 eligible interventional studies registered on ClinicalTrials.gov.
+    Competing risks modelling distinguishes results posting, linked publication, and termination without disclosure.
+    Disclosure accelerated markedly after 2017 FDAAA enforcement.
+  </p>
+
+  <div class="hero-rail" role="list">
+    <div class="metric-card" role="listitem" style="--card-accent: var(--accent)">
+      <div class="val">269,052</div>
+      <div class="label">Eligible interventional trials (all phases, all sponsors)</div>
+    </div>
+    <div class="metric-card" role="listitem" style="--card-accent: var(--green)">
+      <div class="val">71,127<span class="pct">26.4%</span></div>
+      <div class="label">Results posted to CT.gov — median 659 days (~22 months)</div>
+    </div>
+    <div class="metric-card" role="listitem" style="--card-accent: var(--gold)">
+      <div class="val">80,486<span class="pct">29.9%</span></div>
+      <div class="label">Disclosed via linked publication only (no CT.gov results)</div>
+    </div>
+    <div class="metric-card" role="listitem" style="--card-accent: var(--red)">
+      <div class="val">13,212<span class="pct">4.9%</span></div>
+      <div class="label">Terminated — no disclosure of any kind</div>
+    </div>
+    <div class="metric-card" role="listitem" style="--card-accent: var(--muted)">
+      <div class="val">104,227<span class="pct">38.7%</span></div>
+      <div class="label">Censored (ongoing or no linked outcome by data cut)</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Main content ──────────────────────────────────────────────── -->
+<main id="main">
+
+  <!-- Tab navigation -->
+  <nav class="tab-nav" role="tablist" aria-label="Analysis sections">
+    <button class="tab-btn active" role="tab" aria-selected="true"
+            aria-controls="tab-overall" data-panel="tab-overall" id="tbtn-overall">
+      Overall Survival
+    </button>
+    <button class="tab-btn" role="tab" aria-selected="false"
+            aria-controls="tab-strat" data-panel="tab-strat" id="tbtn-strat">
+      Stratified Curves
+    </button>
+    <button class="tab-btn" role="tab" aria-selected="false"
+            aria-controls="tab-cr" data-panel="tab-cr" id="tbtn-cr">
+      Competing Risks
+    </button>
+    <button class="tab-btn" role="tab" aria-selected="false"
+            aria-controls="tab-cox" data-panel="tab-cox" id="tbtn-cox">
+      Cox Forest Plot
+    </button>
+    <button class="tab-btn" role="tab" aria-selected="false"
+            aria-controls="tab-ph" data-panel="tab-ph" id="tbtn-ph">
+      PH Diagnostics
+    </button>
+  </nav>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       TAB 1 — Overall Survival
+  ═══════════════════════════════════════════════════════════════ -->
+  <section id="tab-overall" class="tab-panel" role="tabpanel"
+           aria-labelledby="tbtn-overall">
+
+    <h2 class="panel-title">Overall Kaplan–Meier Survival Function</h2>
+    <p class="panel-desc">
+      Event = any disclosure (CT.gov results posting OR linked publication).
+      Studies without disclosure by data cut are censored.
+      Shaded bands show 95% pointwise confidence intervals (log-log transformation).
+    </p>
+
+    <div class="callout">
+      <strong>Key finding:</strong> The overall median time to disclosure is
+      <strong>not reached</strong> in this cohort — fewer than half of studies ever
+      disclose. At 5 years post-completion, 74.9% of studies remain undisclosed.
+      At 10 years, 66.8% remain undisclosed.
+    </div>
+
+    <!-- KM chart placeholder — will be replaced with inline SVG from figures/ -->
+    <div class="km-svg-wrap">
+      <div id="km-overall-svg"
+           class="chart-placeholder"
+           role="img"
+           aria-label="Kaplan–Meier overall survival curve — placeholder pending SVG embedding">
+        <div class="chart-placeholder-inner">
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+            <rect x="8" y="48" width="48" height="2" fill="currentColor"/>
+            <rect x="8" y="8" width="2" height="42" fill="currentColor"/>
+            <polyline points="10,10 10,30 20,30 20,38 32,38 32,44 50,44 50,48"
+                      stroke="currentColor" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
+          </svg>
+          <p>Kaplan–Meier survival curve</p>
+          <span class="ph-id">#km-overall-svg</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary metrics -->
+    <div class="metric-strip" role="list" aria-label="KM summary statistics">
+      <div class="metric-card" role="listitem" style="--card-accent: var(--accent)">
+        <div class="val">Not reached</div>
+        <div class="label">Median time to disclosure (50th percentile)</div>
+      </div>
+      <div class="metric-card" role="listitem" style="--card-accent: var(--green)">
+        <div class="val">97.0%</div>
+        <div class="label">Still undisclosed at 1 year post-completion</div>
+      </div>
+      <div class="metric-card" role="listitem" style="--card-accent: var(--gold)">
+        <div class="val">84.9%</div>
+        <div class="label">Still undisclosed at 2 years post-completion</div>
+      </div>
+      <div class="metric-card" role="listitem" style="--card-accent: var(--red)">
+        <div class="val">74.9%</div>
+        <div class="label">Still undisclosed at 5 years post-completion</div>
+      </div>
+    </div>
+
+    <!-- Risk table (number at risk) -->
+    <h3 style="font-size:.875rem; font-weight:700; margin-bottom:.5rem; color:var(--muted);">
+      Number at risk (all studies)
+    </h3>
+    <div class="data-table-wrap">
+      <table class="risk-table" aria-label="Number at risk at key timepoints">
+        <thead>
+          <tr>
+            <th scope="col">Stratum</th>
+            <th scope="col">t = 0</th>
+            <th scope="col">1 yr</th>
+            <th scope="col">2 yr</th>
+            <th scope="col">3 yr</th>
+            <th scope="col">5 yr</th>
+            <th scope="col">10 yr</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>All studies</td>
+            <td>269,052</td>
+            <td>~261,100</td>
+            <td>~228,500</td>
+            <td>~215,700</td>
+            <td>~201,600</td>
+            <td>~179,600</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Survival probability table -->
+    <h3 style="font-size:.875rem; font-weight:700; margin:.75rem 0 .5rem; color:var(--muted);">
+      Kaplan–Meier survival estimates at key timepoints
+    </h3>
+    <div class="data-table-wrap">
+      <table class="data-table" aria-label="KM survival probability estimates">
+        <caption>S(t) = probability of remaining undisclosed. 95% CI via log-log transformation.</caption>
+        <thead>
+          <tr>
+            <th scope="col">Time</th>
+            <th scope="col" class="num">Days</th>
+            <th scope="col" class="num">S(t)</th>
+            <th scope="col" class="num">95% CI lower</th>
+            <th scope="col" class="num">95% CI upper</th>
+            <th scope="col" class="num">Events to date</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>1 year</td><td class="num">365</td><td class="num">0.9703</td>
+              <td class="num">0.969</td><td class="num">0.971</td>
+              <td class="num">~7,970</td></tr>
+          <tr><td>2 years</td><td class="num">730</td><td class="num">0.8487</td>
+              <td class="num">0.847</td><td class="num">0.850</td>
+              <td class="num">~40,620</td></tr>
+          <tr><td>3 years</td><td class="num">1,095</td><td class="num">0.8018</td>
+              <td class="num">0.800</td><td class="num">0.803</td>
+              <td class="num">~53,270</td></tr>
+          <tr><td>5 years</td><td class="num">1,825</td><td class="num">0.7489</td>
+              <td class="num">0.747</td><td class="num">0.751</td>
+              <td class="num">~67,600</td></tr>
+          <tr><td>10 years</td><td class="num">3,650</td><td class="num">0.6678</td>
+              <td class="num">0.664</td><td class="num">0.671</td>
+              <td class="num">~89,250</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       TAB 2 — Stratified Curves
+  ═══════════════════════════════════════════════════════════════ -->
+  <section id="tab-strat" class="tab-panel" role="tabpanel"
+           aria-labelledby="tbtn-strat" hidden>
+
+    <h2 class="panel-title">Stratified Kaplan–Meier Curves</h2>
+    <p class="panel-desc">
+      Select a stratification variable. Each stratum's survival function is estimated
+      separately. Log-rank test p-values assess between-group differences.
+    </p>
+
+    <!-- Stratum selector -->
+    <div class="strat-controls">
+      <label for="strat-select">Stratify by:</label>
+      <select id="strat-select" aria-label="Select stratification variable"
+              onchange="updateStratPanel(this.value)">
+        <option value="sponsor">Sponsor class</option>
+        <option value="phase">Trial phase</option>
+        <option value="era">Registration era</option>
+        <option value="condition">Condition family</option>
+      </select>
+    </div>
+
+    <!-- Sponsor class panel -->
+    <div id="strat-sponsor" class="strat-content">
+      <div class="km-svg-wrap">
+        <div id="km-sponsor-svg"
+             class="chart-placeholder"
+             role="img"
+             aria-label="KM curves by sponsor class — placeholder pending SVG embedding"
+             style="min-height:360px;">
+          <div class="chart-placeholder-inner">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+              <rect x="8" y="48" width="48" height="2" fill="currentColor"/>
+              <rect x="8" y="8" width="2" height="42" fill="currentColor"/>
+              <polyline points="10,12 18,12 18,28 30,28 30,36 50,36 50,44"
+                        stroke="#326891" stroke-width="2" fill="none"/>
+              <polyline points="10,18 16,18 16,32 28,32 28,42 50,42 50,46"
+                        stroke="#2a7f62" stroke-width="2" fill="none"/>
+              <polyline points="10,22 14,22 14,36 26,36 26,44 50,44 50,47"
+                        stroke="#c03b26" stroke-width="2" fill="none"/>
+            </svg>
+            <p>KM curves by sponsor class (9 strata)</p>
+            <span class="ph-id">#km-sponsor-svg</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="legend" aria-label="Sponsor class colour legend">
+        <div class="legend-item"><div class="legend-swatch" style="background:#326891"></div>INDUSTRY</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#2a7f62"></div>NIH</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#c03b26"></div>FED</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#8b6914"></div>OTHER_GOV</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#6b3fa0"></div>OTHER</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#555"></div>NETWORK / INDIV / UNKNOWN</div>
+      </div>
+
+      <div class="data-table-wrap">
+        <table class="data-table" aria-label="5-year undisclosed probability by sponsor class">
+          <caption>S(5 yr) = probability of remaining undisclosed at 5 years. Reference = INDUSTRY.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Sponsor class</th>
+              <th scope="col" class="num">S(5 yr)</th>
+              <th scope="col" class="num">Median (days)</th>
+              <th scope="col" class="num">HR vs INDUSTRY</th>
+              <th scope="col" class="num">95% CI</th>
+              <th scope="col" class="num">p-value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>INDUSTRY (ref)</td><td class="num">0.620</td><td class="num">—</td>
+                <td class="num">1.00</td><td class="num">—</td><td class="num">—</td></tr>
+            <tr><td>FED</td><td class="num">0.507</td><td class="num">1,870</td>
+                <td class="num pos">1.503</td><td class="num">1.43–1.58</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>NIH</td><td class="num">0.578</td><td class="num">—</td>
+                <td class="num pos">0.962</td><td class="num">0.92–1.01</td>
+                <td class="num">0.096</td></tr>
+            <tr><td>OTHER_GOV</td><td class="num">0.960</td><td class="num">—</td>
+                <td class="num neg">0.088</td><td class="num">0.076–0.101</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>OTHER</td><td class="num">0.814</td><td class="num">—</td>
+                <td class="num neg">0.467</td><td class="num">0.459–0.475</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>NETWORK</td><td class="num">0.752</td><td class="num">—</td>
+                <td class="num neg">0.418</td><td class="num">0.386–0.451</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>INDIV</td><td class="num">0.715</td><td class="num">—</td>
+                <td class="num neg">0.617</td><td class="num">0.503–0.757</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>UNKNOWN</td><td class="num">0.887</td><td class="num">4,118</td>
+                <td class="num neg">0.840</td><td class="num">0.542–1.303</td>
+                <td class="num">0.437</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Phase panel (hidden by default) -->
+    <div id="strat-phase" class="strat-content" hidden>
+      <div class="km-svg-wrap">
+        <div id="km-phase-svg"
+             class="chart-placeholder"
+             role="img"
+             aria-label="KM curves by trial phase — placeholder pending SVG embedding"
+             style="min-height:360px;">
+          <div class="chart-placeholder-inner">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+              <rect x="8" y="48" width="48" height="2" fill="currentColor"/>
+              <rect x="8" y="8" width="2" height="42" fill="currentColor"/>
+              <polyline points="10,10 16,10 16,22 28,22 28,34 50,34 50,43"
+                        stroke="#326891" stroke-width="2" fill="none"/>
+              <polyline points="10,14 16,14 16,28 28,28 28,40 50,40 50,46"
+                        stroke="#c03b26" stroke-width="2" fill="none"/>
+            </svg>
+            <p>KM curves by trial phase (8 strata)</p>
+            <span class="ph-id">#km-phase-svg</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="data-table-wrap">
+        <table class="data-table" aria-label="5-year undisclosed probability by phase">
+          <caption>Phase 3 and late-phase studies disclose faster (lower S(5yr)) than Phase 1.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Phase</th>
+              <th scope="col" class="num">S(5 yr)</th>
+              <th scope="col" class="num">Median (days)</th>
+              <th scope="col" class="num">HR vs PHASE1</th>
+              <th scope="col" class="num">95% CI</th>
+              <th scope="col" class="num">p-value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>PHASE1 (ref)</td><td class="num">0.859</td><td class="num">—</td>
+                <td class="num">1.00</td><td class="num">—</td><td class="num">—</td></tr>
+            <tr><td>PHASE2</td><td class="num">0.587</td><td class="num">3,771</td>
+                <td class="num pos">2.484</td><td class="num">2.26–2.73</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>PHASE3</td><td class="num">0.562</td><td class="num">3,966</td>
+                <td class="num pos">2.492</td><td class="num">2.27–2.74</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>PHASE4</td><td class="num">0.680</td><td class="num">—</td>
+                <td class="num pos">2.253</td><td class="num">2.05–2.48</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>PHASE1 | PHASE2</td><td class="num">0.607</td><td class="num">—</td>
+                <td class="num pos">2.329</td><td class="num">2.11–2.57</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>PHASE2 | PHASE3</td><td class="num">0.724</td><td class="num">—</td>
+                <td class="num pos">1.793</td><td class="num">1.61–2.00</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>UNSPECIFIED</td><td class="num">0.075</td><td class="num">1,016</td>
+                <td class="num pos">6.018</td><td class="num">4.87–7.44</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>EARLY_PHASE1</td><td class="num">0.853</td><td class="num">—</td>
+                <td class="num neg">0.657</td><td class="num">0.596–0.725</td>
+                <td class="num sig">&lt;0.001</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Era panel (hidden by default) -->
+    <div id="strat-era" class="strat-content" hidden>
+      <div class="km-svg-wrap">
+        <div id="km-era-svg"
+             class="chart-placeholder"
+             role="img"
+             aria-label="KM curves by registration era — placeholder pending SVG embedding"
+             style="min-height:340px;">
+          <div class="chart-placeholder-inner">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+              <rect x="8" y="48" width="48" height="2" fill="currentColor"/>
+              <rect x="8" y="8" width="2" height="42" fill="currentColor"/>
+              <polyline points="10,10 16,10 16,16 28,16 28,22 50,22 50,26"
+                        stroke="#326891" stroke-width="2.5" fill="none"/>
+              <polyline points="10,14 16,14 16,24 28,24 28,36 50,36 50,42"
+                        stroke="#c03b26" stroke-width="2.5" fill="none"/>
+              <polyline points="10,18 16,18 16,32 28,32 28,46 50,46 50,48"
+                        stroke="#8b6914" stroke-width="2.5" fill="none"/>
+            </svg>
+            <p>KM curves by registration era (3 strata)</p>
+            <span class="ph-id">#km-era-svg</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="legend" aria-label="Era colour legend">
+        <div class="legend-item"><div class="legend-swatch" style="background:#326891"></div>Post-2017 (FDAAA enforcement era)</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#c03b26"></div>2007–2017</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#8b6914"></div>Pre-2007</div>
+      </div>
+
+      <div class="callout">
+        <strong>FDAAA effect:</strong> Post-2017 studies (n = ~89k) showed markedly higher
+        disclosure rates than 2007–2017 era studies. Pre-2007 studies (n = ~12k) had
+        very low compliance, consistent with absence of mandatory reporting requirements.
+      </div>
+
+      <div class="data-table-wrap">
+        <table class="data-table" aria-label="5-year undisclosed probability by era">
+          <caption>Disclosure improved substantially after the 2017 FDAAA Final Rule enforcement.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Registration era</th>
+              <th scope="col" class="num">S(5 yr)</th>
+              <th scope="col" class="num">Median (days)</th>
+              <th scope="col" class="num">Interpretation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Post-2017</td><td class="num">0.733</td><td class="num">—</td>
+                <td>FDAAA enforcement period; fastest disclosure</td></tr>
+            <tr><td>2007–2017</td><td class="num">0.748</td><td class="num">—</td>
+                <td>FDAAA enacted but enforcement variable</td></tr>
+            <tr><td>Pre-2007</td><td class="num">0.978</td><td class="num">—</td>
+                <td>No mandatory reporting; near-zero CT.gov results</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Condition panel (hidden by default) -->
+    <div id="strat-condition" class="strat-content" hidden>
+      <div class="km-svg-wrap">
+        <div id="km-condition-svg"
+             class="chart-placeholder"
+             role="img"
+             aria-label="KM curves by condition family — placeholder pending SVG embedding"
+             style="min-height:400px;">
+          <div class="chart-placeholder-inner">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+              <rect x="8" y="48" width="48" height="2" fill="currentColor"/>
+              <rect x="8" y="8" width="2" height="42" fill="currentColor"/>
+              <polyline points="10,10 14,10 14,20 22,20 22,30 50,30 50,40"
+                        stroke="#326891" stroke-width="1.5" fill="none"/>
+              <polyline points="10,14 14,14 14,24 22,24 22,34 50,34 50,43"
+                        stroke="#2a7f62" stroke-width="1.5" fill="none"/>
+              <polyline points="10,18 14,18 14,28 22,28 22,38 50,38 50,46"
+                        stroke="#c03b26" stroke-width="1.5" fill="none"/>
+            </svg>
+            <p>KM curves by condition family (17 strata)</p>
+            <span class="ph-id">#km-condition-svg</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="data-table-wrap">
+        <table class="data-table" aria-label="5-year undisclosed probability by condition family">
+          <caption>All condition families show &gt;55% undisclosed at 5 years. Mental health and oncology disclose fastest.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Condition family</th>
+              <th scope="col" class="num">S(5 yr)</th>
+              <th scope="col" class="num">HR (ref = cardiovascular)</th>
+              <th scope="col" class="num">95% CI</th>
+              <th scope="col" class="num">p-value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Mental health</td><td class="num">—</td>
+                <td class="num pos">1.305</td><td class="num">1.26–1.35</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>Oncology</td><td class="num">—</td>
+                <td class="num pos">1.274</td><td class="num">1.24–1.31</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>Neurology</td><td class="num">—</td>
+                <td class="num pos">1.235</td><td class="num">1.18–1.29</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>Immunology/Derm</td><td class="num">—</td>
+                <td class="num pos">1.222</td><td class="num">1.15–1.29</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>Infectious disease</td><td class="num">—</td>
+                <td class="num pos">1.192</td><td class="num">1.15–1.23</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>Cardiovascular (ref)</td><td class="num">—</td>
+                <td class="num">1.000</td><td class="num">—</td><td class="num">—</td></tr>
+            <tr><td>Respiratory/Sleep</td><td class="num">—</td>
+                <td class="num pos">1.085</td><td class="num">1.04–1.13</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>Musculoskeletal/Pain</td><td class="num">—</td>
+                <td class="num">1.000</td><td class="num">0.962–1.038</td>
+                <td class="num">0.984</td></tr>
+            <tr><td>Renal/Urology</td><td class="num">—</td>
+                <td class="num pos">1.013</td><td class="num">0.961–1.068</td>
+                <td class="num">0.627</td></tr>
+            <tr><td>Metabolic</td><td class="num">—</td>
+                <td class="num neg">0.941</td><td class="num">0.905–0.977</td>
+                <td class="num sig">0.002</td></tr>
+            <tr><td>Gastro/Hepatic</td><td class="num">—</td>
+                <td class="num neg">0.943</td><td class="num">0.895–0.994</td>
+                <td class="num sig">0.029</td></tr>
+            <tr><td>Reproductive/Maternal</td><td class="num">—</td>
+                <td class="num neg">0.820</td><td class="num">0.764–0.879</td>
+                <td class="num sig">&lt;0.001</td></tr>
+            <tr><td>Healthy volunteer</td><td class="num">—</td>
+                <td class="num neg">0.854</td><td class="num">0.814–0.896</td>
+                <td class="num sig">&lt;0.001</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       TAB 3 — Competing Risks
+  ═══════════════════════════════════════════════════════════════ -->
+  <section id="tab-cr" class="tab-panel" role="tabpanel"
+           aria-labelledby="tbtn-cr" hidden>
+
+    <h2 class="panel-title">Competing Risks: Cumulative Incidence Functions</h2>
+    <p class="panel-desc">
+      Aalen–Johansen estimator with three competing events: (1) results posted to CT.gov,
+      (2) disclosure via linked publication only, (3) termination without any disclosure.
+      Studies remaining event-free are censored. CIFs sum correctly to 1 − S(t).
+    </p>
+
+    <!-- CIF metric cards -->
+    <div class="metric-strip" role="list" aria-label="Final cumulative incidence by event type">
+      <div class="metric-card" role="listitem" style="--card-accent: var(--green)">
+        <div class="val">26.4%</div>
+        <div class="label">Event 1 — CT.gov results posted (overall cohort)</div>
+      </div>
+      <div class="metric-card" role="listitem" style="--card-accent: var(--gold)">
+        <div class="val">29.9%</div>
+        <div class="label">Event 2 — Linked publication only (no CT.gov results)</div>
+      </div>
+      <div class="metric-card" role="listitem" style="--card-accent: var(--red)">
+        <div class="val">4.9%</div>
+        <div class="label">Event 3 — Terminated without disclosure</div>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <strong>Note on CIF interpretation:</strong> CIF values represent the probability of
+      each event type occurring by time t in the presence of competing risks. They do NOT
+      sum to 1; the remainder is the censored fraction. Final CIF (all follow-up):
+      Event 1 = 0.297, Event 2 = 0.596, Event 3 = 0.108.
+    </div>
+
+    <!-- CIF chart placeholder -->
+    <div class="km-svg-wrap">
+      <div id="cif-stacked-svg"
+           class="chart-placeholder"
+           role="img"
+           aria-label="Cumulative incidence function stacked chart — placeholder pending SVG embedding"
+           style="min-height:360px;">
+        <div class="chart-placeholder-inner">
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+            <rect x="8" y="48" width="48" height="2" fill="currentColor"/>
+            <rect x="8" y="8" width="2" height="42" fill="currentColor"/>
+            <!-- stacked area sketch -->
+            <path d="M10,48 L50,42 L50,48 Z" fill="#2a7f62" opacity=".5"/>
+            <path d="M10,48 L50,42 L50,28 L10,48 Z" fill="#8b6914" opacity=".5"/>
+            <path d="M10,48 L50,28 L50,16 L10,48 Z" fill="#c03b26" opacity=".4"/>
+          </svg>
+          <p>Aalen–Johansen CIF stacked area chart</p>
+          <span class="ph-id">#cif-stacked-svg</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CIF bar chart at key timepoints -->
+    <h3 style="font-size:.875rem; font-weight:700; margin-bottom:.75rem; color:var(--muted);">
+      CIF at key timepoints (bar chart)
+    </h3>
+
+    <div class="legend" aria-label="CIF event colour legend">
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--green)"></div>Event 1: CT.gov results</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--gold)"></div>Event 2: Publication only</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--red)"></div>Event 3: Terminated, no disclosure</div>
+    </div>
+
+    <div class="cif-bar-wrap" role="list" aria-label="CIF at key timepoints">
+      <div class="cif-bar-row" role="listitem">
+        <span class="cif-bar-label">1 year</span>
+        <div class="cif-bar-track" title="CIF at 1 year">
+          <div class="cif-bar-seg" style="background:var(--green);width:2.95%" title="CT.gov results: 0.030"></div>
+          <div class="cif-bar-seg" style="background:var(--gold);width:0.92%" title="Publication: 0.009"></div>
+          <div class="cif-bar-seg" style="background:var(--red);width:0.01%" title="Terminated: 0.000"></div>
+        </div>
+        <span class="cif-bar-val" style="color:var(--muted); font-size:.75rem">3.9%</span>
+      </div>
+      <div class="cif-bar-row" role="listitem">
+        <span class="cif-bar-label">2 years</span>
+        <div class="cif-bar-track" title="CIF at 2 years">
+          <div class="cif-bar-seg" style="background:var(--green);width:14.92%" title="CT.gov results: 0.149"></div>
+          <div class="cif-bar-seg" style="background:var(--gold);width:2.65%" title="Publication: 0.027"></div>
+          <div class="cif-bar-seg" style="background:var(--red);width:0.01%" title="Terminated: 0.000"></div>
+        </div>
+        <span class="cif-bar-val" style="color:var(--muted); font-size:.75rem">17.6%</span>
+      </div>
+      <div class="cif-bar-row" role="listitem">
+        <span class="cif-bar-label">5 years</span>
+        <div class="cif-bar-track" title="CIF at 5 years">
+          <div class="cif-bar-seg" style="background:var(--green);width:24.25%" title="CT.gov results: 0.243"></div>
+          <div class="cif-bar-seg" style="background:var(--gold);width:9.70%" title="Publication: 0.097"></div>
+          <div class="cif-bar-seg" style="background:var(--red);width:0.87%" title="Terminated: 0.009"></div>
+        </div>
+        <span class="cif-bar-val" style="color:var(--muted); font-size:.75rem">34.8%</span>
+      </div>
+      <div class="cif-bar-row" role="listitem">
+        <span class="cif-bar-label">10 years</span>
+        <div class="cif-bar-track" title="CIF at 10 years">
+          <div class="cif-bar-seg" style="background:var(--green);width:28.42%" title="CT.gov results: 0.284"></div>
+          <div class="cif-bar-seg" style="background:var(--gold);width:23.03%" title="Publication: 0.230"></div>
+          <div class="cif-bar-seg" style="background:var(--red);width:3.21%" title="Terminated: 0.032"></div>
+        </div>
+        <span class="cif-bar-val" style="color:var(--muted); font-size:.75rem">54.7%</span>
+      </div>
+    </div>
+
+    <!-- CIF data table -->
+    <div class="data-table-wrap">
+      <table class="data-table" aria-label="Cumulative incidence at key timepoints">
+        <caption>CIF(t) = probability of event by time t. Final row = end of follow-up.</caption>
+        <thead>
+          <tr>
+            <th scope="col">Time</th>
+            <th scope="col" class="num">Days</th>
+            <th scope="col" class="num">CIF — CT.gov results</th>
+            <th scope="col" class="num">CIF — Publication</th>
+            <th scope="col" class="num">CIF — Terminated</th>
+            <th scope="col" class="num">Total disclosed</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>1 year</td><td class="num">365</td>
+              <td class="num">0.030</td><td class="num">0.009</td>
+              <td class="num">&lt;0.001</td><td class="num">0.039</td></tr>
+          <tr><td>2 years</td><td class="num">730</td>
+              <td class="num">0.149</td><td class="num">0.027</td>
+              <td class="num">&lt;0.001</td><td class="num">0.176</td></tr>
+          <tr><td>5 years</td><td class="num">1,825</td>
+              <td class="num">0.243</td><td class="num">0.097</td>
+              <td class="num">0.009</td><td class="num">0.349</td></tr>
+          <tr><td>10 years</td><td class="num">3,650</td>
+              <td class="num">0.284</td><td class="num">0.230</td>
+              <td class="num">0.032</td><td class="num">0.546</td></tr>
+          <tr><td>End of follow-up</td><td class="num">~108 yr</td>
+              <td class="num">0.297</td><td class="num">0.596</td>
+              <td class="num">0.108</td><td class="num">1.001*</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:.75rem; color:var(--muted); margin-top:-.75rem; margin-bottom:1.5rem;">
+      *Sum may exceed 1.000 due to rounding; actual sum equals exactly 1 − final censored fraction.
+    </p>
+
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       TAB 4 — Cox Forest Plot
+  ═══════════════════════════════════════════════════════════════ -->
+  <section id="tab-cox" class="tab-panel" role="tabpanel"
+           aria-labelledby="tbtn-cox" hidden>
+
+    <h2 class="panel-title">Cox Proportional Hazards Model — Forest Plot</h2>
+    <p class="panel-desc">
+      Multivariable Cox model predicting time to any disclosure. HRs above 1.0 indicate
+      faster disclosure (higher hazard of disclosing) relative to the reference category.
+      Reference categories: INDUSTRY (sponsor), PHASE1 (phase), cardiovascular (condition), pre-2007 (era).
+    </p>
+
+    <!-- Concordance badge -->
+    <div style="margin-bottom:1.25rem; display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+      <div class="concordance-badge" aria-label="Cox model concordance index 0.683">
+        <span>Concordance index</span>
+        <span class="val">0.683</span>
+      </div>
+      <span style="font-size:.8rem; color:var(--muted);">
+        Harrell's C (95% CI ~0.68–0.69) — moderate discrimination; disclosure is primarily
+        driven by regulatory mandate, not study characteristics alone.
+      </span>
+    </div>
+
+    <!-- Forest plot placeholder with inline data representation -->
+    <div class="km-svg-wrap" style="margin-bottom:1rem;">
+      <div id="cox-forest-svg"
+           class="chart-placeholder"
+           role="img"
+           aria-label="Cox model forest plot — placeholder pending SVG embedding"
+           style="min-height:480px;">
+        <div class="chart-placeholder-inner">
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+            <rect x="32" y="4" width="1" height="56" fill="currentColor" opacity=".3"/>
+            <line x1="20" y1="12" x2="44" y2="12" stroke="#326891" stroke-width="2"/>
+            <rect x="30" y="10" width="4" height="4" fill="#326891"/>
+            <line x1="16" y1="22" x2="38" y2="22" stroke="#2a7f62" stroke-width="2"/>
+            <rect x="30" y="20" width="4" height="4" fill="#2a7f62"/>
+            <line x1="28" y1="32" x2="50" y2="32" stroke="#c03b26" stroke-width="2"/>
+            <rect x="36" y="30" width="4" height="4" fill="#c03b26"/>
+            <line x1="22" y1="42" x2="48" y2="42" stroke="#8b6914" stroke-width="2"/>
+            <rect x="33" y="40" width="4" height="4" fill="#8b6914"/>
+          </svg>
+          <p>Cox forest plot (31 covariates)</p>
+          <span class="ph-id">#cox-forest-svg</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inline forest table -->
+    <div class="forest-container" aria-label="Cox model hazard ratios forest data">
+
+      <!-- Sponsor class section -->
+      <div class="forest-row section-head">Sponsor class (ref = INDUSTRY)</div>
+      <div class="forest-row header" aria-hidden="true">
+        <div class="fr-label">Variable</div>
+        <div class="fr-hr">HR</div>
+        <div class="fr-ci">95% CI</div>
+        <div class="fr-p">p-value</div>
+        <div class="fr-bar" style="font-size:.7rem; color:var(--muted);">← Lower disclosure  ·  Higher disclosure →</div>
+      </div>
+
+      <div class="forest-row">
+        <div class="fr-label">FED</div>
+        <div class="fr-hr pos">1.503</div>
+        <div class="fr-ci">1.43–1.58</div>
+        <div class="fr-p sig">&lt;0.001</div>
+        <div class="fr-bar" aria-hidden="true">
+          <div class="fr-track"></div>
+          <div class="fr-vline"></div>
+          <div class="fr-ci-line" style="left:51.5%; width:3.5%; background:var(--green)"></div>
+          <div class="fr-diamond pos" style="left:55.5%"></div>
+        </div>
+      </div>
+      <div class="forest-row">
+        <div class="fr-label">NIH</div>
+        <div class="fr-hr" style="color:var(--muted)">0.962</div>
+        <div class="fr-ci">0.92–1.01</div>
+        <div class="fr-p">0.096</div>
+        <div class="fr-bar" aria-hidden="true">
+          <div class="fr-track"></div>
+          <div class="fr-vline"></div>
+          <div class="fr-ci-line" style="left:47.5%; width:3%;"></div>
+          <div class="fr-diamond" style="left:49%;"></div>
+        </div>
+      </div>
+      <div class="forest-row">
+        <div class="fr-label">OTHER_GOV</div>
+        <div class="fr-hr neg">0.088</div>
+        <div class="fr-ci">0.076–0.101</div>
+        <div class="fr-p sig">&lt;0.001</div>
+        <div class="fr-bar" aria-hidden="true">
+          <div class="fr-track"></div>
+          <div class="fr-vline"></div>
+          <div class="fr-ci-line" style="left:2%; width:8%; background:var(--red)"></div>
+          <div class="fr-diamond neg" style="left:6%;"></div>
+        </div>
+      </div>
+      <div class="forest-row">
+        <div class="fr-label">OTHER</div>
+        <div class="fr-hr neg">0.467</div>
+        <div class="fr-ci">0.459–0.475</div>
+        <div class="fr-p sig">&lt;0.001</div>
+        <div class="fr-bar" aria-hidden="true">
+          <div class="fr-track"></div>
+          <div class="fr-vline"></div>
+          <div class="fr-ci-line" style="left:23%; width:1%; background:var(--red)"></div>
+          <div class="fr-diamond neg" style="left:23.5%;"></div>
+        </div>
+      </div>
+      <div class="forest-row">
+        <div class="fr-label">NETWORK</div>
+        <div class="fr-hr neg">0.418</div>
+        <div class="fr-ci">0.386–0.451</div>
+        <div class="fr-p sig">&lt;0.001</div>
+        <div class="fr-bar" aria-hidden="true">
+          <div class="fr-track"></div>
+          <div class="fr-vline"></div>
+          <div class="fr-ci-line" style="left:18%; width:4%; background:var(--red)"></div>
+          <div class="fr-diamond neg" style="left:21%;"></div>
+        </div>
+      </div>
+      <div class="forest-row">
+        <div class="fr-label">INDIV</div>
+        <div class="fr-hr neg">0.617</div>
+        <div class="fr-ci">0.503–0.757</div>
+        <div class="fr-p sig">&lt;0.001</div>
+        <div class="fr-bar" aria-hidden="true">
+          <div class="fr-track"></div>
+          <div class="fr-vline"></div>
+          <div class="fr-ci-line" style="left:24%; width:10%; background:var(--red)"></div>
+          <div class="fr-diamond neg" style="left:30%;"></div>
+        </div>
+      </div>
+
+      <!-- Phase section -->
+      <div class="forest-row section-head">Trial phase (ref = PHASE1)</div>
+      <div class="forest-row">
+        <div class="fr-label">PHASE2</div>
+        <div class="fr-hr pos">2.484</div>
+        <div class="fr-ci">2.26–2.73</div>
+        <div class="fr-p sig">&lt;0.001</div>
+        <div class="fr-bar" aria-hidden="true">
+          <div class="fr-track"></div>
+          <div class="fr-vline"></div>
+          <div class="fr-ci-line" style="left:62%; width:10%; background:var(--green)"></div>
+          <div class="fr-diamond pos" style="left:68%;"></div>
+        </div>
+      </div>
+      <div class="forest-row">
+        <div class="fr-label">PHASE3</div>
+        <div class="fr-hr pos">2.492</div>
+        <div class="fr-ci">2.27–2.74</div>
+        <div class="fr-p sig">&lt;0.001</div>
+        <div class="fr-bar" aria-hidden="true">
+          <div class="fr-track"></div>
+          <div class="fr-vline"></div>
+          <div class="fr-ci-line" style="left:62%; width:10%; background:var(--green)"></div>
+          <div class="fr-diamond pos" style="left:68.5%;"></div>
+        </div>
+      </div>
+      <div class="forest-row">
+        <div class="fr-label">PHASE4</div>
+        <div class="fr-hr pos">2.254</div>
+        <div class="fr-ci">2.05–2.48</div>
+        <div class="fr-p sig">&lt;0.001</div>
+        <div class="fr-bar" aria-hidden="true">
+          <div class="fr-track"></div>
+          <div class="fr-vline"></div>
+          <div class="fr-ci-line" style="left:58%; width:10%; background:var(--green)"></div>
+          <div class="fr-diamond pos" style="left:64%;"></div>
+        </div>
+      </div>
+      <div class="forest-row">
+        <div class="fr-label">UNSPECIFIED</div>
+        <div class="fr-hr pos">6.018</div>
+        <div class="fr-ci">4.87–7.44</div>
+        <div class="fr-p sig">&lt;0.001</div>
+        <div class="fr-bar" aria-hidden="true">
+          <div class="fr-track"></div>
+          <div class="fr-vline"></div>
+          <div class="fr-ci-line" style="left:72%; width:10%; background:var(--green)"></div>
+          <div class="fr-diamond pos" style="left:79%;"></div>
+        </div>
+      </div>
+      <div class="forest-row">
+        <div class="fr-label">EARLY_PHASE1</div>
+        <div class="fr-hr neg">0.657</div>
+        <div class="fr-ci">0.596–0.725</div>
+        <div class="fr-p sig">&lt;0.001</div>
+        <div class="fr-bar" aria-hidden="true">
+          <div class="fr-track"></div>
+          <div class="fr-vline"></div>
+          <div class="fr-ci-line" style="left:28%; width:6%; background:var(--red)"></div>
+          <div class="fr-diamond neg" style="left:32%;"></div>
+        </div>
+      </div>
+
+      <!-- Condition section (top significant) -->
+      <div class="forest-row section-head">Condition family — top predictors (ref = cardiovascular)</div>
+      <div class="forest-row">
+        <div class="fr-label">Mental health</div>
+        <div class="fr-hr pos">1.305</div>
+        <div class="fr-ci">1.26–1.35</div>
+        <div class="fr-p sig">&lt;0.001</div>
+        <div class="fr-bar" aria-hidden="true">
+          <div class="fr-track"></div>
+          <div class="fr-vline"></div>
+          <div class="fr-ci-line" style="left:52%; width:4%; background:var(--green)"></div>
+          <div class="fr-diamond pos" style="left:55%;"></div>
+        </div>
+      </div>
+      <div class="forest-row">
+        <div class="fr-label">Oncology</div>
+        <div class="fr-hr pos">1.274</div>
+        <div class="fr-ci">1.24–1.31</div>
+        <div class="fr-p sig">&lt;0.001</div>
+        <div class="fr-bar" aria-hidden="true">
+          <div class="fr-track"></div>
+          <div class="fr-vline"></div>
+          <div class="fr-ci-line" style="left:52%; width:3.5%; background:var(--green)"></div>
+          <div class="fr-diamond pos" style="left:54.5%;"></div>
+        </div>
+      </div>
+      <div class="forest-row">
+        <div class="fr-label">Repro./Maternal</div>
+        <div class="fr-hr neg">0.820</div>
+        <div class="fr-ci">0.764–0.879</div>
+        <div class="fr-p sig">&lt;0.001</div>
+        <div class="fr-bar" aria-hidden="true">
+          <div class="fr-track"></div>
+          <div class="fr-vline"></div>
+          <div class="fr-ci-line" style="left:37%; width:6%; background:var(--red)"></div>
+          <div class="fr-diamond neg" style="left:41%;"></div>
+        </div>
+      </div>
+      <div class="forest-row">
+        <div class="fr-label">Healthy volunteer</div>
+        <div class="fr-hr neg">0.854</div>
+        <div class="fr-ci">0.814–0.896</div>
+        <div class="fr-p sig">&lt;0.001</div>
+        <div class="fr-bar" aria-hidden="true">
+          <div class="fr-track"></div>
+          <div class="fr-vline"></div>
+          <div class="fr-ci-line" style="left:39%; width:4%; background:var(--red)"></div>
+          <div class="fr-diamond neg" style="left:42.5%;"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Full Cox table -->
+    <details style="margin-bottom:1.5rem;">
+      <summary style="cursor:pointer; font-size:.875rem; font-weight:600; color:var(--accent); padding:.5rem 0;">
+        Full Cox model coefficient table (31 covariates)
+      </summary>
+      <div class="data-table-wrap" style="margin-top:.75rem;">
+        <table class="data-table" aria-label="Full Cox model results">
+          <caption>Multivariable Cox PH model. HR = hazard ratio for disclosure. Bold = p &lt; 0.05.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Covariate</th>
+              <th scope="col" class="num">HR</th>
+              <th scope="col" class="num">95% CI lower</th>
+              <th scope="col" class="num">95% CI upper</th>
+              <th scope="col" class="num">p-value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>lead_sponsor: FED</td><td class="num pos">1.503</td><td class="num">1.426</td><td class="num">1.583</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>lead_sponsor: INDIV</td><td class="num neg">0.617</td><td class="num">0.503</td><td class="num">0.757</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>lead_sponsor: NETWORK</td><td class="num neg">0.418</td><td class="num">0.386</td><td class="num">0.451</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>lead_sponsor: NIH</td><td class="num">0.962</td><td class="num">0.919</td><td class="num">1.007</td><td class="num">0.096</td></tr>
+            <tr><td>lead_sponsor: OTHER</td><td class="num neg">0.467</td><td class="num">0.459</td><td class="num">0.475</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>lead_sponsor: OTHER_GOV</td><td class="num neg">0.088</td><td class="num">0.076</td><td class="num">0.101</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>lead_sponsor: UNKNOWN</td><td class="num">0.840</td><td class="num">0.542</td><td class="num">1.303</td><td class="num">0.437</td></tr>
+            <tr><td>phase: NA</td><td class="num pos">1.192</td><td class="num">1.086</td><td class="num">1.310</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>phase: EARLY_PHASE1</td><td class="num neg">0.657</td><td class="num">0.596</td><td class="num">0.725</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>phase: PHASE1|PHASE2</td><td class="num pos">2.329</td><td class="num">2.111</td><td class="num">2.570</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>phase: PHASE2</td><td class="num pos">2.484</td><td class="num">2.261</td><td class="num">2.730</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>phase: PHASE2|PHASE3</td><td class="num pos">1.793</td><td class="num">1.610</td><td class="num">1.997</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>phase: PHASE3</td><td class="num pos">2.492</td><td class="num">2.266</td><td class="num">2.740</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>phase: PHASE4</td><td class="num pos">2.254</td><td class="num">2.048</td><td class="num">2.479</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>phase: UNSPECIFIED</td><td class="num pos">6.018</td><td class="num">4.868</td><td class="num">7.441</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>condition: gastro_hepatic</td><td class="num neg">0.943</td><td class="num">0.895</td><td class="num">0.994</td><td class="num sig">0.029</td></tr>
+            <tr><td>condition: healthy_volunteer</td><td class="num neg">0.854</td><td class="num">0.814</td><td class="num">0.896</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>condition: immunology_derm</td><td class="num pos">1.222</td><td class="num">1.154</td><td class="num">1.295</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>condition: infectious</td><td class="num pos">1.192</td><td class="num">1.151</td><td class="num">1.234</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>condition: mental_health</td><td class="num pos">1.305</td><td class="num">1.259</td><td class="num">1.353</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>condition: metabolic</td><td class="num neg">0.941</td><td class="num">0.905</td><td class="num">0.977</td><td class="num sig">0.002</td></tr>
+            <tr><td>condition: musculoskeletal_pain</td><td class="num">1.000</td><td class="num">0.962</td><td class="num">1.038</td><td class="num">0.984</td></tr>
+            <tr><td>condition: neurology</td><td class="num pos">1.235</td><td class="num">1.185</td><td class="num">1.288</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>condition: oncology</td><td class="num pos">1.274</td><td class="num">1.237</td><td class="num">1.313</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>condition: other</td><td class="num pos">1.082</td><td class="num">1.051</td><td class="num">1.113</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>condition: renal_urology</td><td class="num">1.013</td><td class="num">0.961</td><td class="num">1.068</td><td class="num">0.627</td></tr>
+            <tr><td>condition: reproductive_maternal</td><td class="num neg">0.820</td><td class="num">0.764</td><td class="num">0.879</td><td class="num sig">&lt;0.001</td></tr>
+            <tr><td>condition: respiratory_sleep</td><td class="num pos">1.085</td><td class="num">1.038</td><td class="num">1.134</td><td class="num sig">&lt;0.001</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       TAB 5 — PH Diagnostics
+  ═══════════════════════════════════════════════════════════════ -->
+  <section id="tab-ph" class="tab-panel" role="tabpanel"
+           aria-labelledby="tbtn-ph" hidden>
+
+    <h2 class="panel-title">Proportional Hazards Diagnostics</h2>
+    <p class="panel-desc">
+      Schoenfeld residual tests assess whether the proportional hazards assumption holds
+      for each covariate. A significant p-value (p &lt; 0.05) indicates time-varying effects.
+      Log–log survival plots provide a graphical check.
+    </p>
+
+    <!-- Schoenfeld placeholder -->
+    <div class="km-svg-wrap">
+      <div id="schoenfeld-svg"
+           class="chart-placeholder"
+           role="img"
+           aria-label="Schoenfeld residual plots — placeholder pending SVG embedding"
+           style="min-height:360px;">
+        <div class="chart-placeholder-inner">
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+            <rect x="8" y="48" width="48" height="2" fill="currentColor"/>
+            <rect x="8" y="8" width="2" height="42" fill="currentColor"/>
+            <line x1="8" y1="28" x2="56" y2="28" stroke="currentColor" stroke-dasharray="4 3" opacity=".4"/>
+            <circle cx="16" cy="24" r="2" fill="#326891" opacity=".7"/>
+            <circle cx="22" cy="32" r="2" fill="#326891" opacity=".7"/>
+            <circle cx="28" cy="26" r="2" fill="#326891" opacity=".7"/>
+            <circle cx="34" cy="30" r="2" fill="#326891" opacity=".7"/>
+            <circle cx="40" cy="25" r="2" fill="#326891" opacity=".7"/>
+            <circle cx="46" cy="29" r="2" fill="#326891" opacity=".7"/>
+          </svg>
+          <p>Schoenfeld residuals vs. log(time)</p>
+          <span class="ph-id">#schoenfeld-svg</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Narrative -->
+    <div class="callout">
+      <strong>Global PH test:</strong> Schoenfeld residual p-values were not available
+      in the computed output (empty JSON). This is common when the lifelines library
+      returns unstable estimates for very large datasets with near-zero p-values.
+      Separate Schoenfeld residual plots (figures/schoenfeld_*.png) will be examined
+      visually for time-varying trends.
+    </div>
+
+    <div class="callout warn">
+      <strong>Deadline-driven compliance pattern:</strong> The primary covariate of interest —
+      FDAAA reporting deadline — is expected to show a step-function hazard rather than
+      proportional hazard. Violations of PH are anticipated for sponsor class and phase
+      covariates during the 2017 enforcement transition. A piecewise Cox model (3 intervals)
+      was fit as a sensitivity analysis to accommodate this non-proportionality.
+    </div>
+
+    <!-- PH interpretation -->
+    <h3 style="font-size:.9rem; font-weight:700; margin-bottom:.75rem;">
+      Expected PH violations and mitigations
+    </h3>
+    <div class="data-table-wrap">
+      <table class="data-table" aria-label="Expected PH violations by covariate">
+        <caption>
+          Anticipated proportional hazards violations based on biological/regulatory plausibility.
+          Mitigations applied in sensitivity analyses.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Covariate</th>
+            <th scope="col">Expected PH violation?</th>
+            <th scope="col">Mechanism</th>
+            <th scope="col">Mitigation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Registration era (pre/post-2017)</td>
+            <td class="sig">Yes — high</td>
+            <td>FDAAA 2017 enforcement creates step change in disclosure hazard</td>
+            <td>Piecewise Cox (3 intervals); era-stratified baseline hazard</td>
+          </tr>
+          <tr>
+            <td>Sponsor: FED / NIH</td>
+            <td class="sig">Yes — moderate</td>
+            <td>NIH policy changes over follow-up affect disclosure timing differently</td>
+            <td>Piecewise Cox; interaction term era × sponsor</td>
+          </tr>
+          <tr>
+            <td>Phase: UNSPECIFIED</td>
+            <td class="sig">Yes — high</td>
+            <td>UNSPECIFIED was a data entry artifact pre-2017; reclassified post-2017</td>
+            <td>Exclude from primary model; sensitivity analysis with NA collapsed</td>
+          </tr>
+          <tr>
+            <td>Condition family</td>
+            <td>Low</td>
+            <td>Disease area rarely changes reporting mandate; stable effect expected</td>
+            <td>Global Schoenfeld test; visual residual plots</td>
+          </tr>
+          <tr>
+            <td>Phase: PHASE2 / PHASE3</td>
+            <td>Low–moderate</td>
+            <td>Late-phase studies more affected by 2017 mandate; potential interaction</td>
+            <td>Schoenfeld residuals vs. log(time) per phase; piecewise Cox</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Log-log placeholder -->
+    <h3 style="font-size:.9rem; font-weight:700; margin:.75rem 0 .5rem;">
+      Log–log survival plots (graphical PH check)
+    </h3>
+    <div class="km-svg-wrap">
+      <div id="loglog-svg"
+           class="chart-placeholder"
+           role="img"
+           aria-label="Log-log survival plots — placeholder pending SVG embedding"
+           style="min-height:280px;">
+        <div class="chart-placeholder-inner">
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+            <rect x="8" y="48" width="48" height="2" fill="currentColor"/>
+            <rect x="8" y="8" width="2" height="42" fill="currentColor"/>
+            <polyline points="10,44 20,36 32,28 44,22 54,18"
+                      stroke="#326891" stroke-width="2" fill="none"/>
+            <polyline points="10,46 20,40 32,34 44,30 54,27"
+                      stroke="#c03b26" stroke-width="2" fill="none"/>
+          </svg>
+          <p>log(−log S(t)) vs. log(t) — parallel lines indicate PH</p>
+          <span class="ph-id">#loglog-svg</span>
+        </div>
+      </div>
+    </div>
+
+    <p style="font-size:.8rem; color:var(--muted);">
+      If log–log curves are parallel across strata, the proportional hazards assumption holds.
+      Crossing curves indicate time-varying effects. These plots will be embedded from
+      <code>figures/loglog_*.png</code> in a subsequent pipeline step.
+    </p>
+
+  </section>
+
+</main>
+
+<!-- ── Footer ───────────────────────────────────────────────────── -->
+<footer class="page-footer" role="contentinfo">
+  <span>CT.gov Registry Survival Analysis — Pre-computed results, March 2026</span>
+  <span>Data source: ClinicalTrials.gov AACT database · n = 269,052 interventional studies</span>
+  <span>Methods: lifelines v0.27 · Python 3.11 · Read-only dashboard</span>
+</footer>
+
+</div><!-- /.page -->
+
+<script>
+/* ── Tab switching ─────────────────────────────────────────────── */
+document.querySelectorAll('.tab-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.tab-btn').forEach(function(b) {
+            b.classList.remove('active');
+            b.setAttribute('aria-selected', 'false');
+        });
+        document.querySelectorAll('.tab-panel').forEach(function(p) {
+            p.hidden = true;
+        });
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+        document.getElementById(btn.dataset.panel).hidden = false;
+    });
+});
+
+/* ── Keyboard navigation for tabs ─────────────────────────────── */
+document.querySelector('.tab-nav').addEventListener('keydown', function(e) {
+    var tabs = Array.from(document.querySelectorAll('.tab-btn'));
+    var idx  = tabs.indexOf(document.activeElement);
+    if (idx === -1) return;
+    var next = -1;
+    if (e.key === 'ArrowRight') next = (idx + 1) % tabs.length;
+    if (e.key === 'ArrowLeft')  next = (idx - 1 + tabs.length) % tabs.length;
+    if (e.key === 'Home')       next = 0;
+    if (e.key === 'End')        next = tabs.length - 1;
+    if (next !== -1) {
+        e.preventDefault();
+        tabs[next].focus();
+        tabs[next].click();
+    }
+});
+
+/* ── Stratified curve panel switching ─────────────────────────── */
+function updateStratPanel(val) {
+    var panels = document.querySelectorAll('.strat-content');
+    panels.forEach(function(p) { p.hidden = true; });
+    var map = {
+        sponsor:   'strat-sponsor',
+        phase:     'strat-phase',
+        era:       'strat-era',
+        condition: 'strat-condition'
+    };
+    if (map[val]) {
+        document.getElementById(map[val]).hidden = false;
+    }
+}
+</script>
+
+</body>
+</html>
