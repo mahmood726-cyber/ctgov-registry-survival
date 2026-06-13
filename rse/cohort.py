@@ -4,6 +4,7 @@ Filters the Hiddenness Atlas study_features dataset to eligible interventional
 studies and classifies competing events: results posted (1), publication only (2),
 terminated without disclosure (3), or censored (0).
 """
+import os
 from datetime import date
 from pathlib import Path
 
@@ -11,8 +12,13 @@ import pandas as pd
 
 SNAPSHOT_DATE = date(2026, 3, 29)
 
-ATLAS_PARQUET = Path(r"C:\Projects\ctgov-hiddenness-atlas\data\processed\study_features.parquet")
-CONDITION_PARQUET = Path(r"C:\Projects\ctgov-hiddenness-atlas\data\processed\study_condition_family.parquet")
+# Source data lives in the companion ctgov-hiddenness-atlas project. Resolve the
+# atlas root from the ATLAS_DATA_DIR environment variable so the path is not
+# hardcoded to one machine; fall back to a sibling "data/processed" directory.
+_ATLAS_DATA_DIR = Path(os.environ.get("ATLAS_DATA_DIR", "data/processed"))
+
+ATLAS_PARQUET = _ATLAS_DATA_DIR / "study_features.parquet"
+CONDITION_PARQUET = _ATLAS_DATA_DIR / "study_condition_family.parquet"
 
 TERMINATED_THRESHOLD_DAYS = 1095  # 3 years
 
