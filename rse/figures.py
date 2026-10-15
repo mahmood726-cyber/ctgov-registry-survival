@@ -131,13 +131,15 @@ def plot_km_curve(
         tick_months = np.arange(0, times_months.max() + 12, 12)
         tick_days = tick_months * DAYS_PER_MONTH
         n_at_risk = []
+        # Event-table at_risk, not a count of timeline rows: the latter
+        # incorrectly shows 1 participant at t=0 regardless of cohort size.
+        risk_table = fitter.event_table
         for td in tick_days:
-            n_at_risk.append(int((fitter.timeline <= td).sum()
-                                 if td == 0
-                                 else fitter.event_table["at_risk"].iloc[
-                                     max(0, np.searchsorted(
-                                         fitter.timeline, td, side="right") - 1)
-                                 ]))
+            idx = risk_table.index.searchsorted(td, side="right") - 1
+            if idx < 0:
+                n_at_risk.append(int(risk_table["at_risk"].iloc[0]))
+            else:
+                n_at_risk.append(int(risk_table["at_risk"].iloc[idx]))
         # Place text below axes
         for i, (tm, nr) in enumerate(zip(tick_months, n_at_risk)):
             ax.text(tm, -0.08, str(nr), transform=ax.get_xaxis_transform(),
