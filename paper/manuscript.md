@@ -1,3 +1,5 @@
+> **Scientific correction — 15 October 2026:** This manuscript's competing-risk and Fine–Gray estimates are withdrawn from interpretation pending reanalysis. The previously used data did not provide publication-event dates or termination-event dates, yet the analytical pipeline assigned these signals artificial event times. In addition, its subdistribution hazard approximation used arbitrary fixed weights rather than valid censoring weights. Figures and numbers below are retained only as a historical, uncorrected record and must not be cited as validated time-to-disclosure evidence. The corrected code now estimates only dated registry results posting; no revised full-registry results have been generated.
+
 # Time to Disclosure on ClinicalTrials.gov: A Competing Risks Survival Analysis of 269,052 Interventional Studies
 
 **Authors:** [AUTHOR_NAME]^1 [ORCID], [AUTHOR_NAME]^2 [ORCID]
