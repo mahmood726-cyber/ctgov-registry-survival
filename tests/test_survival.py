@@ -22,9 +22,9 @@ class TestKaplanMeier:
         assert all(surv[i] >= surv[i + 1] for i in range(len(surv) - 1))
 
     def test_km_matches_r_reference(self, synthetic_cohort, r_reference):
-        """KM survival at 1, 2, 3, 5 years matches R survfit within 1e-4."""
+        """Legacy synthetic benchmark only, not scientific event validity."""
         cohort = build_cohort(synthetic_cohort)
-        events = classify_events(cohort)
+        events = classify_events(cohort, legacy_proxy_events=True)
         times = [365, 730, 1095, 1825]
         summary = km_summary_at_times(events, times)
         for i, t in enumerate(times):
@@ -35,9 +35,9 @@ class TestKaplanMeier:
 
 class TestCoxRegression:
     def test_cox_coefficients_match_r(self, synthetic_cohort, r_reference):
-        """Cox coefficients for sponsor class match R coxph within 0.05."""
+        """Legacy synthetic coefficient benchmark, not valid event dates."""
         cohort = build_cohort(synthetic_cohort)
-        events = classify_events(cohort)
+        events = classify_events(cohort, legacy_proxy_events=True)
         cox = fit_cox(events, covariates=["lead_sponsor_class", "phase_label"])
         r_coefs = r_reference["cox_coef"]
         matched = 0

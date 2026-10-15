@@ -554,6 +554,13 @@ body {
 </style>
 </head>
 <body>
+<section role="alert" style="background:#fff1f0;border:3px solid #b42318;padding:1.25rem 1.5rem;margin:1rem auto;max-width:1120px;color:#58151b;font-family:system-ui,sans-serif;line-height:1.5">
+  <strong>Scientific validity warning — 15 October 2026.</strong>
+  The competing-risk and Fine–Gray estimates on this historical dashboard are <strong>superseded and must not be used for scientific inference</strong>.
+  The original pipeline treated undated publication links and study termination as dated competing events, and used invalid fixed Fine–Gray weights.
+  Corrected code now restricts time-to-event analysis to observed, dated registry results posting. All numerical charts below remain historical and <strong>have not been recalculated</strong>.
+  <a href="https://github.com/mahmood726-cyber/ctgov-registry-survival/blob/master/README.md">Read the correction and methods limitations</a>.
+</section>
 
 <a class="skip" href="#main">Skip to main content</a>
 

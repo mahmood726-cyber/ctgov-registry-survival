@@ -40,10 +40,20 @@ def aalen_johansen(events: pd.DataFrame, event_codes: list[int] | None = None) -
         event_codes: list of event codes included.
     """
     if event_codes is None:
-        event_codes = sorted([c for c in events["event_code"].unique() if c != 0])
+        event_codes = sorted(int(c) for c in events["event_code"].unique() if c != 0)
+    elif len(set(event_codes)) != len(event_codes) or any(
+        isinstance(c, bool) or not isinstance(c, (int, np.integer)) or c <= 0
+        for c in event_codes
+    ):
+        raise ValueError("event_codes must contain unique positive integers")
 
-    times = events["time_days"].values.astype(float)
-    codes = events["event_code"].values.astype(int)
+    times = events["time_days"].to_numpy(dtype=float)
+    raw_codes = events["event_code"].to_numpy(dtype=float)
+    if not (np.isfinite(times).all() and np.isfinite(raw_codes).all()):
+        raise ValueError("Non-finite follow-up times or event codes")
+    if (times < 0).any() or (raw_codes < 0).any() or not np.equal(raw_codes, raw_codes.astype(int)).all():
+        raise ValueError("Follow-up times and event codes must be non-negative")
+    codes = raw_codes.astype(int)
 
     event_mask = codes > 0
     unique_times = np.sort(np.unique(times[event_mask]))
@@ -65,11 +75,12 @@ def aalen_johansen(events: pd.DataFrame, event_codes: list[int] | None = None) -
             continue
 
         at_t = times == t
-        d_total = 0
+        # All real event types decrease event-free survival, including
+        # causes that the caller did not request in this subset of CIFs.
+        d_total = int(np.sum(at_t & (codes > 0)))
         for code in event_codes:
             d_k = int(np.sum(at_t & (codes == code)))
             cum_cif[code] += surv * d_k / n_at_risk
-            d_total += d_k
 
         surv *= 1.0 - d_total / n_at_risk
 
@@ -116,11 +127,11 @@ def cif_at_times(
     aj = aalen_johansen(events, event_codes=event_codes)
     event_times = aj["times"]
 
-    def _interp(arr: np.ndarray, t: float) -> float:
+    def _interp(arr: np.ndarray, t: float, baseline: float = 0.0) -> float:
         """Step-function lookup: value at largest event_time <= t."""
         idx = np.searchsorted(event_times, t, side="right") - 1
         if idx < 0:
-            return 0.0
+            return baseline
         return float(arr[idx])
 
     query_times_arr = np.asarray(query_times, dtype=float)
@@ -131,7 +142,7 @@ def cif_at_times(
     return {
         "query_times": query_times_arr.tolist(),
         "cif": result_cif,
-        "survival": [_interp(aj["survival"], t) for t in query_times_arr],
+        "survival": [_interp(aj["survival"], t, baseline=1.0) for t in query_times_arr],
     }
 
 
@@ -167,85 +178,20 @@ def cif_stratified(
 # Fine-Gray subdistribution hazard (weighted Cox approximation)
 # ---------------------------------------------------------------------------
 
-def fine_gray(
-    events: pd.DataFrame,
-    covariates: list[str],
-    event_of_interest: int = 1,
-) -> dict:
-    """Fit a Fine-Gray subdistribution hazard model.
+def fine_gray(events: pd.DataFrame, covariates: list[str],
+              event_of_interest: int = 1) -> dict:
+    """Refuse a misleading Fine-Gray estimate.
 
-    Approximation: subjects who experience a competing event are kept in the
-    risk set for the event of interest (extended to the maximum observed time),
-    which is the defining feature of subdistribution hazard regression.  A
-    weighted Cox PH model is then fitted via lifelines ``CoxPHFitter``.
-
-    Parameters
-    ----------
-    events : DataFrame with ``time_days``, ``event_code``, and covariate cols.
-    covariates : predictor column names.
-    event_of_interest : event code for the primary event.
-
-    Returns
-    -------
-    dict with keys: coefficients, hazard_ratios, ci_lower, ci_upper,
-        p_values, n_events, fitter.
+    The historical implementation extended competing-event follow-up to the
+    last observation and assigned an arbitrary 0.5 weight. This is NOT the
+    inverse-probability-of-censoring weighted subdistribution risk set used
+    in Fine-Gray regression. There is no scientifically defensible constant
+    replacement weight: an independently validated IPCW implementation and
+    accurately dated causes would be required.
     """
-    from lifelines import CoxPHFitter
-
-    df = events[["time_days", "event_code"] + covariates].copy().dropna()
-
-    # Determine competing codes (all non-zero codes != event_of_interest)
-    all_event_codes = [c for c in df["event_code"].unique() if c != 0]
-    competing_codes = [c for c in all_event_codes if c != event_of_interest]
-
-    max_time = float(df["time_days"].max())
-
-    # Build subdistribution risk set:
-    #   - primary event subjects: event_flag=1, time as observed
-    #   - censored subjects: event_flag=0, time as observed
-    #   - competing event subjects: event_flag=0, time extended to max_time
-    #     (weight = inverse of KM probability of NOT having had competing event)
-    df["sd_time"] = df["time_days"].astype(float)
-    df["sd_event"] = (df["event_code"] == event_of_interest).astype(int)
-
-    competing_mask = df["event_code"].isin(competing_codes)
-    df.loc[competing_mask, "sd_time"] = max_time
-
-    # Simple weight: 1 for non-competing, 0.5 for competing (conservative approx)
-    # A full Fine-Gray uses IPCW weights; this is a practical approximation.
-    df["weight"] = 1.0
-    df.loc[competing_mask, "weight"] = 0.5
-
-    # Encode categorical covariates
-    analysis = df[["sd_time", "sd_event", "weight"] + covariates].copy()
-    for col in covariates:
-        if analysis[col].dtype == object or str(analysis[col].dtype) == "category":
-            analysis[col] = pd.Categorical(analysis[col])
-            dummies = pd.get_dummies(
-                analysis[col], prefix=col, prefix_sep="_",
-                drop_first=True, dtype=float,
-            )
-            analysis = pd.concat([analysis, dummies], axis=1)
-            analysis = analysis.drop(columns=[col])
-
-    cph = CoxPHFitter()
-    cph.fit(
-        analysis,
-        duration_col="sd_time",
-        event_col="sd_event",
-        weights_col="weight",
-        robust=True,
+    raise NotImplementedError(
+        "Fine-Gray estimates disabled: historical arbitrary 0.5 "
+        "competing-event weights are invalid. Registry publication/termination "
+        "dates are also missing. Use cause-specific results-posting Cox/KM "
+        "or an Aalen-Johansen CIF only with genuinely dated competing causes."
     )
-
-    summary = cph.summary
-    n_events = int(df["sd_event"].sum())
-
-    return {
-        "coefficients": summary["coef"].to_dict(),
-        "hazard_ratios": summary["exp(coef)"].to_dict(),
-        "ci_lower": summary["exp(coef) lower 95%"].to_dict(),
-        "ci_upper": summary["exp(coef) upper 95%"].to_dict(),
-        "p_values": summary["p"].to_dict(),
-        "n_events": n_events,
-        "fitter": cph,
-    }
