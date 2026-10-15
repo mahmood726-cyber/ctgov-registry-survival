@@ -17,17 +17,16 @@ To produce revised scientific results: acquire and validate the atlas full-regis
 Survival analysis of clinical-trial result disclosure on ClinicalTrials.gov.
 
 This repository builds an eligible interventional cohort from the companion
-ctgov-hiddenness-atlas study-features dataset, classifies competing disclosure
-events (results posted, publication only, terminated without disclosure, or
-censored), and runs time-to-disclosure models.
+ctgov-hiddenness-atlas study-features dataset, identifies dated registry results-posting events; undated publication and
+termination signals are retained as descriptive flags, not competing events,
+and runs a corrected cause-specific time-to-posting analysis.
 
 ## Modules (`rse/`)
 
 - `cohort.py` — cohort eligibility filtering and competing-event classification.
 - `survival.py` — Kaplan-Meier estimation, Cox proportional-hazards regression,
   and Schoenfeld PH-assumption diagnostics (via `lifelines`).
-- `competing_risks.py` — Aalen-Johansen cumulative incidence and a weighted-Cox
-  approximation to the Fine-Gray subdistribution hazard.
+- `competing_risks.py` — Aalen-Johansen cumulative incidence while the previous arbitrary-weight Fine-Gray approximation is disabled.
 - `piecewise.py` — piecewise Cox regression for interval-specific hazard ratios.
 - `figures.py` — figure helpers.
 
