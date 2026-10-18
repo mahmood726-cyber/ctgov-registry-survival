@@ -12,6 +12,17 @@ The Aalen–Johansen implementation now subtracts **all** actual event types fro
 
 To produce revised scientific results: acquire and validate the atlas full-registry release, audit the date exclusions and censoring, recompute all derived plots/tables and independently validate chosen estimands. The historical static dashboard is deliberately left visible with a prominent correction warning; its pre-correction numerical estimates are **superseded pending reanalysis**.
 
+## October 18, 2026 — source-bound survival eligibility
+
+The upstream [CT.gov Hiddenness Atlas](https://github.com/mahmood726-cyber/ctgov-hiddenness-atlas) now preserves the original date precision and propagates a `source_as_of_date` for every record. **This analysis now requires a newly regenerated source table containing those fields**: `source_as_of_date`, `primary_completion_date_precision`, `results_first_post_date_precision`, `results_status_known` and `results_status_conflict`. Older parquet data without this provenance is rejected, not quietly interpreted as day-precise.
+
+- A source release contains one verified date for all rows, which is the **only default censoring date**. Passing another date raises an error. The March 29, 2026 `SNAPSHOT_DATE` constant is retained solely as the known date of the bundled *synthetic* reference dataset.
+- Only `ACTUAL`, day-precise `YYYY-MM-DD` primary completion can enter the risk set. Unknown posted-results status is excluded. Posted results with month/year-only dates or invalid/future/pre-baseline dates are excluded and counted; they are **not** assigned arbitrary first-of-month posting times.
+- Duplicate NCT IDs in the study table or condition-family lookup are refused. The optional condition join is validated as one-to-one so it cannot silently multiply trial counts.
+- The model uses an explicit exact-day parser, avoiding ambiguous mixed-format parsing by pandas. Existing synthetic R comparisons still run with explicitly annotated source dates; they do not validate the real full-registry analysis.
+
+Use the corrected atlas snapshot-generation and analysis scripts first; then point `ATLAS_DATA_DIR` at the newly derived `study_features.parquet`. Run `pytest -q` before regenerating results. **No historical public dashboards or paper figures were recalculated in this change**, and no legal results-reporting conclusions are implied.
+
 ## Project description
 
 Survival analysis of clinical-trial result disclosure on ClinicalTrials.gov.
