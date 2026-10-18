@@ -112,7 +112,9 @@ def build_cohort(df: pd.DataFrame, snapshot: date | None = None) -> pd.DataFrame
         & (df["results_status_known"] == True)
     )
     cohort = df.loc[mask].copy()
-    cohort["pcd"] = pd.to_datetime(cohort["primary_completion_date"], errors="coerce")
+    cohort["pcd"] = pd.to_datetime(
+        cohort["primary_completion_date"], format="%Y-%m-%d", errors="coerce"
+    )
     cohort = cohort.loc[cohort["pcd"].notna() & (cohort["pcd"].dt.date <= snapshot)]
     return cohort.reset_index(drop=True)
 
@@ -144,8 +146,13 @@ def classify_events(cohort: pd.DataFrame, snapshot: date | None = None,
     # Inconsistent known status/posting dates are audited and excluded below,
     # rather than being silently omitted before event-classification auditing.
     out = cohort.copy()
-    out["rpd"] = pd.to_datetime(out["results_first_post_date"], errors="coerce")
     posted_date_precise = out["results_first_post_date_precision"] == "DAY"
+    # Parse ONLY records with source-confirmed day precision. Pandas' default
+    # format inference on mixed YYYY-MM / YYYY-MM-DD can hide genuine dates.
+    posted_source = out["results_first_post_date"].where(posted_date_precise)
+    out["rpd"] = pd.to_datetime(
+        posted_source, format="%Y-%m-%d", errors="coerce"
+    )
     days_to_snapshot = (pd.Timestamp(snapshot) - out["pcd"]).dt.days
     results_lag = (out["rpd"] - out["pcd"]).dt.days
 
