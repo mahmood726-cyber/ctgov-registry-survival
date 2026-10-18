@@ -1,16 +1,73 @@
 """Cohort builder and event classification for registry survival analysis.
 
-Filters the Hiddenness Atlas study_features dataset to eligible interventional
-studies and classifies competing events: results posted (1), publication only (2),
-terminated without disclosure (3), or censored (0).
+Filters the Hiddenness Atlas study_features dataset to eligible, source-dated
+interventional studies. The corrected model uses dated posted-results events
+(1) and censoring (0); undated publication/termination proxy events are legacy
+only and are not valid for scientific inference.
 """
 import os
+import re
 from datetime import date
 from pathlib import Path
 
 import pandas as pd
 
+
+# This date is ONLY the bundled March-2026 synthetic benchmark's reference.
+# Production cohort dates must come from the companion atlas source metadata.
 SNAPSHOT_DATE = date(2026, 3, 29)
+
+
+def _assert_unique_nct_ids(df: pd.DataFrame, source: str) -> None:
+    if "nct_id" not in df.columns or df["nct_id"].isna().any():
+        raise ValueError(f"{source} has missing NCT IDs; cannot construct a trial-level cohort")
+    if df["nct_id"].duplicated().any():
+        duplicate = str(df.loc[df["nct_id"].duplicated(), "nct_id"].iloc[0])
+        raise ValueError(f"{source} contains duplicate NCT IDs ({duplicate}); refusing inflated study counts")
+
+
+def source_snapshot_date(df: pd.DataFrame, snapshot: date | None = None) -> date:
+    """Bind follow-up to the atlas release, not today's date or a hard-coded era."""
+    if "source_as_of_date" not in df.columns:
+        raise ValueError(
+            "Atlas has no source_as_of_date: regenerate features from a dated "
+            "registry source before time-to-event analysis"
+        )
+    if df.empty or df["source_as_of_date"].isna().any():
+        raise ValueError("Atlas source_as_of_date is missing for some/all studies")
+    values = set(df["source_as_of_date"].astype(str))
+    if len(values) != 1:
+        raise ValueError("Mixed CT.gov snapshot dates; cannot define one censoring time")
+    raw = next(iter(values))
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+        raise ValueError("Atlas source_as_of_date must be a day-precise YYYY-MM-DD")
+    try:
+        observed = date.fromisoformat(raw)
+    except ValueError:
+        raise ValueError("Atlas source_as_of_date is not a valid calendar date") from None
+    if snapshot is not None and observed != snapshot:
+        raise ValueError(
+            f"Requested censoring date {snapshot} does not match registry "
+            f"source_as_of_date {observed}; obtain a matching export"
+        )
+    return observed
+
+
+REQUIRED_PRECISION_COLUMNS = (
+    "primary_completion_date_precision",
+    "results_first_post_date_precision",
+    "results_status_known",
+    "results_status_conflict",
+)
+
+
+def require_precision_fields(df: pd.DataFrame) -> None:
+    absent = [col for col in REQUIRED_PRECISION_COLUMNS if col not in df.columns]
+    if absent:
+        raise ValueError(
+            "Atlas feature table has no auditable date/results precision columns "
+            f"({', '.join(absent)}); regenerate the source-date-aware atlas"
+        )
 
 # Source data lives in the companion ctgov-hiddenness-atlas project. Resolve the
 # atlas root from the ATLAS_DATA_DIR environment variable so the path is not
@@ -29,22 +86,31 @@ def load_atlas(path: Path | None = None,
     path = path or ATLAS_PARQUET
     condition_path = condition_path or CONDITION_PARQUET
     df = pd.read_parquet(path)
+    _assert_unique_nct_ids(df, "Atlas study-features table")
+    source_snapshot_date(df)
+    require_precision_fields(df)
     if "condition_family" not in df.columns and condition_path.exists():
         cond = pd.read_parquet(condition_path)[["nct_id", "condition_family"]]
-        df = df.merge(cond, on="nct_id", how="left")
+        _assert_unique_nct_ids(cond, "Atlas condition-family table")
+        df = df.merge(cond, on="nct_id", how="left", validate="one_to_one")
         df["condition_family"] = df["condition_family"].fillna("other")
     return df
 
 
 def build_cohort(df: pd.DataFrame, snapshot: date | None = None) -> pd.DataFrame:
     """Filter to eligible interventional cohort."""
-    snapshot = snapshot or SNAPSHOT_DATE
+    snapshot = source_snapshot_date(df, snapshot)
+    require_precision_fields(df)
+    _assert_unique_nct_ids(df, "Input cohort")
     mask = (
         (df["is_interventional"] == True)
         & (df["is_closed"] == True)
         & (df["primary_completion_date"].notna())
         & (df["primary_completion_date"].astype(str).str.strip() != "")
         & (df["primary_completion_date_type"] == "ACTUAL")
+        & (df["primary_completion_date_precision"] == "DAY")
+        & (df["results_status_known"] == True)
+        & (df["results_status_conflict"] == False)
     )
     cohort = df.loc[mask].copy()
     cohort["pcd"] = pd.to_datetime(cohort["primary_completion_date"], errors="coerce")
@@ -71,9 +137,14 @@ def classify_events(cohort: pd.DataFrame, snapshot: date | None = None,
     """
     import warnings
 
-    snapshot = snapshot or SNAPSHOT_DATE
+    snapshot = source_snapshot_date(cohort, snapshot)
+    require_precision_fields(cohort)
+    _assert_unique_nct_ids(cohort, "Dated event cohort")
+    if not cohort["results_status_known"].all() or cohort["results_status_conflict"].any():
+        raise ValueError("Event cohort has unknown or conflicting posted-results status")
     out = cohort.copy()
     out["rpd"] = pd.to_datetime(out["results_first_post_date"], errors="coerce")
+    posted_date_precise = out["results_first_post_date_precision"] == "DAY"
     days_to_snapshot = (pd.Timestamp(snapshot) - out["pcd"]).dt.days
     results_lag = (out["rpd"] - out["pcd"]).dt.days
 
@@ -111,15 +182,15 @@ def classify_events(cohort: pd.DataFrame, snapshot: date | None = None,
                   3: "terminated_undated_proxy"}
     else:
         timed_posting = (
-            has_results & out["rpd"].notna()
+            has_results & posted_date_precise & out["rpd"].notna()
             & (results_lag > 0)
             & (out["rpd"] <= pd.Timestamp(snapshot))
         )
         # A result already posted at/before primary completion is prevalent
         # at time zero, and must not be included in a post-completion risk set.
-        missing_time = has_results & out["rpd"].isna()
-        prevalent_posting = has_results & (results_lag <= 0)
-        future_posting = has_results & (out["rpd"] > pd.Timestamp(snapshot))
+        missing_time = has_results & (~posted_date_precise | out["rpd"].isna())
+        prevalent_posting = has_results & posted_date_precise & (results_lag <= 0)
+        future_posting = has_results & posted_date_precise & (out["rpd"] > pd.Timestamp(snapshot))
         contradictory_posting = ~has_results & out["rpd"].notna()
         exclude = (
             missing_time | prevalent_posting | future_posting
