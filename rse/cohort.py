@@ -110,7 +110,6 @@ def build_cohort(df: pd.DataFrame, snapshot: date | None = None) -> pd.DataFrame
         & (df["primary_completion_date_type"] == "ACTUAL")
         & (df["primary_completion_date_precision"] == "DAY")
         & (df["results_status_known"] == True)
-        & (df["results_status_conflict"] == False)
     )
     cohort = df.loc[mask].copy()
     cohort["pcd"] = pd.to_datetime(cohort["primary_completion_date"], errors="coerce")
@@ -140,8 +139,10 @@ def classify_events(cohort: pd.DataFrame, snapshot: date | None = None,
     snapshot = source_snapshot_date(cohort, snapshot)
     require_precision_fields(cohort)
     _assert_unique_nct_ids(cohort, "Dated event cohort")
-    if not cohort["results_status_known"].all() or cohort["results_status_conflict"].any():
-        raise ValueError("Event cohort has unknown or conflicting posted-results status")
+    if not cohort["results_status_known"].all():
+        raise ValueError("Event cohort has unknown posted-results status")
+    # Inconsistent known status/posting dates are audited and excluded below,
+    # rather than being silently omitted before event-classification auditing.
     out = cohort.copy()
     out["rpd"] = pd.to_datetime(out["results_first_post_date"], errors="coerce")
     posted_date_precise = out["results_first_post_date_precision"] == "DAY"
