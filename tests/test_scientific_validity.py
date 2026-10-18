@@ -11,6 +11,11 @@ from rse.competing_risks import aalen_johansen, cif_at_times, fine_gray
 def row(study_id, *, result=False, posted="", publication=False, stopped=False):
     return {
         "nct_id": study_id,
+        "source_as_of_date": "2026-03-29",
+        "primary_completion_date_precision": "DAY",
+        "results_first_post_date_precision": "DAY" if len(posted) == 10 else "MISSING",
+        "results_status_known": True,
+        "results_status_conflict": bool(not result and posted),
         "pcd": pd.Timestamp("2023-01-01"),
         "results_first_post_date": posted,
         "has_results": result,
